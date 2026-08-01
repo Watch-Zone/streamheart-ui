@@ -40,8 +40,9 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-live: var(--live);
   --color-live-foreground: var(--live-foreground);
-
+  --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

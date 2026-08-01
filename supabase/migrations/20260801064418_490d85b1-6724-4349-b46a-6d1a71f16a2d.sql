@@ -1,0 +1,4 @@
+CREATE POLICY "Media is readable by everyone" ON storage.objects FOR SELECT USING (bucket_id IN ('videos','thumbnails'));
+CREATE POLICY "Users can upload to their own folder" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id IN ('videos','thumbnails') AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY "Users can update their own media" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id IN ('videos','thumbnails') AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY "Users can delete their own media" ON storage.objects FOR DELETE TO authenticated USING (bucket_id IN ('videos','thumbnails') AND auth.uid()::text = (storage.foldername(name))[1]);

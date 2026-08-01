@@ -15,6 +15,9 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ExploreRouteImport } from './routes/explore'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
+import { Route as LiveIndexRouteImport } from './routes/live.index'
+import { Route as LiveStreamIdRouteImport } from './routes/live.$streamId'
+import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as VideosIdRouteImport } from './routes/videos.$id'
 import { Route as AuthenticatedRoomsIndexRouteImport } from './routes/_authenticated/rooms.index'
 import { Route as AuthenticatedRoomsRoomIdRouteImport } from './routes/_authenticated/rooms.$roomId'
@@ -48,6 +51,21 @@ const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
   path: '/upload',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const LiveIndexRoute = LiveIndexRouteImport.update({
+  id: '/live/',
+  path: '/live/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiveStreamIdRoute = LiveStreamIdRouteImport.update({
+  id: '/live/$streamId',
+  path: '/live/$streamId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileUserIdRoute = ProfileUserIdRouteImport.update({
+  id: '/profile/$userId',
+  path: '/profile/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VideosIdRoute = VideosIdRouteImport.update({
   id: '/videos/$id',
   path: '/videos/$id',
@@ -71,7 +89,10 @@ export interface FileRoutesByFullPath {
   '/explore': typeof ExploreRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/upload': typeof AuthenticatedUploadRoute
+  '/live/$streamId': typeof LiveStreamIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
   '/videos/$id': typeof VideosIdRoute
+  '/live/': typeof LiveIndexRoute
   '/rooms/$roomId': typeof AuthenticatedRoomsRoomIdRoute
   '/rooms/': typeof AuthenticatedRoomsIndexRoute
 }
@@ -81,7 +102,10 @@ export interface FileRoutesByTo {
   '/explore': typeof ExploreRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/upload': typeof AuthenticatedUploadRoute
+  '/live/$streamId': typeof LiveStreamIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
   '/videos/$id': typeof VideosIdRoute
+  '/live': typeof LiveIndexRoute
   '/rooms/$roomId': typeof AuthenticatedRoomsRoomIdRoute
   '/rooms': typeof AuthenticatedRoomsIndexRoute
 }
@@ -93,7 +117,10 @@ export interface FileRoutesById {
   '/explore': typeof ExploreRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/upload': typeof AuthenticatedUploadRoute
+  '/live/$streamId': typeof LiveStreamIdRoute
+  '/profile/$userId': typeof ProfileUserIdRoute
   '/videos/$id': typeof VideosIdRoute
+  '/live/': typeof LiveIndexRoute
   '/_authenticated/rooms/$roomId': typeof AuthenticatedRoomsRoomIdRoute
   '/_authenticated/rooms/': typeof AuthenticatedRoomsIndexRoute
 }
@@ -105,7 +132,10 @@ export interface FileRouteTypes {
     | '/explore'
     | '/dashboard'
     | '/upload'
+    | '/live/$streamId'
+    | '/profile/$userId'
     | '/videos/$id'
+    | '/live/'
     | '/rooms/$roomId'
     | '/rooms/'
   fileRoutesByTo: FileRoutesByTo
@@ -115,7 +145,10 @@ export interface FileRouteTypes {
     | '/explore'
     | '/dashboard'
     | '/upload'
+    | '/live/$streamId'
+    | '/profile/$userId'
     | '/videos/$id'
+    | '/live'
     | '/rooms/$roomId'
     | '/rooms'
   id:
@@ -126,7 +159,10 @@ export interface FileRouteTypes {
     | '/explore'
     | '/_authenticated/dashboard'
     | '/_authenticated/upload'
+    | '/live/$streamId'
+    | '/profile/$userId'
     | '/videos/$id'
+    | '/live/'
     | '/_authenticated/rooms/$roomId'
     | '/_authenticated/rooms/'
   fileRoutesById: FileRoutesById
@@ -136,7 +172,10 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ExploreRoute: typeof ExploreRoute
+  LiveStreamIdRoute: typeof LiveStreamIdRoute
+  ProfileUserIdRoute: typeof ProfileUserIdRoute
   VideosIdRoute: typeof VideosIdRoute
+  LiveIndexRoute: typeof LiveIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -182,6 +221,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/upload'
       preLoaderRoute: typeof AuthenticatedUploadRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/live/': {
+      id: '/live/'
+      path: '/live'
+      fullPath: '/live/'
+      preLoaderRoute: typeof LiveIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/live/$streamId': {
+      id: '/live/$streamId'
+      path: '/live/$streamId'
+      fullPath: '/live/$streamId'
+      preLoaderRoute: typeof LiveStreamIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile/$userId': {
+      id: '/profile/$userId'
+      path: '/profile/$userId'
+      fullPath: '/profile/$userId'
+      preLoaderRoute: typeof ProfileUserIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/videos/$id': {
       id: '/videos/$id'
@@ -229,7 +289,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ExploreRoute: ExploreRoute,
+  LiveStreamIdRoute: LiveStreamIdRoute,
+  ProfileUserIdRoute: ProfileUserIdRoute,
   VideosIdRoute: VideosIdRoute,
+  LiveIndexRoute: LiveIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

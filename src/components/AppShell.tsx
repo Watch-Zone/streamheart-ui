@@ -1,14 +1,14 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Compass,
   Home,
+  LayoutDashboard,
   LogOut,
-  Menu,
-  PlaySquare,
   Search,
   Upload,
   UserRound,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,86 +26,131 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/", label: "Home", icon: Home },
   { to: "/explore", label: "Explore", icon: Compass },
-  { to: "/dashboard", label: "Your videos", icon: PlaySquare },
-  { to: "/upload", label: "Upload", icon: Upload },
+  { to: "/rooms", label: "Rooms", icon: Users },
+  { to: "/dashboard", label: "Studio", icon: LayoutDashboard },
 ] as const;
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(true);
+export function BrandMark({ className }: { className?: string }) {
+  return (
+    <span className={cn("flex items-center gap-2", className)}>
+      <span className="gradient-brand glow relative flex h-8 w-8 items-center justify-center rounded-xl">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-primary-foreground">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+      </span>
+      <span className="font-display text-lg font-extrabold tracking-tight">
+        Stream<span className="text-gradient">Hub</span>
+      </span>
+    </span>
+  );
+}
+
+export function AppShell({
+  children,
+  bleed = false,
+}: {
+  children: ReactNode;
+  bleed?: boolean;
+}) {
   const [query, setQuery] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
   const { user } = useSession();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   async function signOut() {
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
 
+  const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b border-border bg-background px-3 sm:px-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Toggle navigation"
-          onClick={() => setOpen((v) => !v)}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-        <Link to="/" className="flex items-center gap-2 pr-2">
-          <span className="flex h-6 w-8 items-center justify-center rounded bg-primary">
-            <Play />
-          </span>
-          <span className="hidden text-lg font-bold tracking-tight sm:inline">StreamHub</span>
-        </Link>
+    <div className="relative min-h-screen bg-background">
+      <div className="aurora pointer-events-none fixed inset-x-0 top-0 h-[420px] opacity-70" />
 
-        <form
-          className="mx-auto flex w-full max-w-xl items-center"
-          onSubmit={(e) => {
-            e.preventDefault();
-            navigate({ to: "/explore", search: { q: query } });
-          }}
-        >
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search videos"
-            aria-label="Search videos"
-            className="h-9 rounded-l-full rounded-r-none border-r-0 bg-surface"
-          />
-          <Button
-            type="submit"
-            variant="secondary"
-            className="h-9 rounded-l-none rounded-r-full px-5"
-            aria-label="Search"
+      <header
+        className={cn(
+          "sticky top-0 z-50 transition-colors duration-300",
+          scrolled ? "glass border-b border-border/60" : "border-b border-transparent bg-transparent",
+        )}
+      >
+        <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-3 px-4 sm:px-6">
+          <Link to="/" aria-label="StreamHub home">
+            <BrandMark />
+          </Link>
+
+          <nav className="ml-4 hidden items-center gap-1 lg:flex">
+            {NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  "rounded-full px-3.5 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground",
+                  isActive(item.to) && "bg-secondary text-foreground",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+
+          <form
+            className="ml-auto flex w-full max-w-sm items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              navigate({ to: "/explore", search: { q: query } });
+            }}
           >
-            <Search className="h-4 w-4" />
-          </Button>
-        </form>
+            <div className="relative w-full">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search titles, creators…"
+                aria-label="Search videos"
+                maxLength={120}
+                className="h-10 rounded-full border-border/70 bg-surface/70 pl-9 pr-4 text-sm backdrop-blur"
+              />
+            </div>
+          </form>
 
-        <div className="flex items-center gap-1">
-          <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+          <Button
+            asChild
+            size="sm"
+            className="gradient-brand hidden rounded-full font-semibold text-primary-foreground shadow-none transition-transform hover:scale-[1.03] sm:inline-flex"
+          >
             <Link to="/upload">
               <Upload className="mr-2 h-4 w-4" /> Upload
             </Link>
           </Button>
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Account menu">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account menu">
+                  <span className="gradient-brand flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-primary-foreground">
                     {(user.email ?? "U").slice(0, 2).toUpperCase()}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-56 rounded-xl">
                 <DropdownMenuItem disabled className="text-xs">
                   {user.email}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link to="/dashboard">Your videos</Link>
+                  <Link to="/dashboard">Creator studio</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/rooms">My rooms</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/upload">Upload video</Link>
@@ -117,7 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button asChild size="sm" variant="outline">
+            <Button asChild size="sm" variant="outline" className="rounded-full border-border/70">
               <Link to="/auth">
                 <UserRound className="mr-2 h-4 w-4" /> Sign in
               </Link>
@@ -126,44 +171,34 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <div className="flex">
-        <aside
-          className={cn(
-            "sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 overflow-y-auto border-r border-border bg-sidebar py-3 md:block",
-            open ? "w-56 px-3" : "w-[72px] px-2",
-          )}
-        >
-          <nav className="flex flex-col gap-1">
-            {NAV.map((item) => {
-              const active = pathname === item.to;
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    "flex items-center rounded-lg text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent",
-                    open ? "gap-4 px-3 py-2.5" : "flex-col gap-1 px-1 py-3 text-[10px]",
-                    active && "bg-sidebar-accent font-semibold text-sidebar-accent-foreground",
-                  )}
-                >
-                  <item.icon className="h-5 w-5 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
-          </nav>
-        </aside>
+      <main
+        className={cn(
+          "relative z-10 min-h-[70vh] pb-28 lg:pb-16",
+          bleed ? "" : "mx-auto max-w-[1600px] px-4 pt-6 sm:px-6",
+        )}
+      >
+        {children}
+      </main>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">{children}</main>
-      </div>
+      <nav className="glass fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-border/60 py-2 lg:hidden">
+        {NAV.map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className={cn(
+              "flex min-w-0 flex-col items-center gap-1 px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors",
+              isActive(item.to) && "text-foreground",
+            )}
+          >
+            <item.icon className={cn("h-5 w-5 shrink-0", isActive(item.to) && "text-primary")} />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <footer className="relative z-10 hidden border-t border-border/60 py-8 text-center text-xs text-muted-foreground lg:block">
+        StreamHub — stream, upload and watch together.
+      </footer>
     </div>
-  );
-}
-
-function Play() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-primary-foreground" aria-hidden="true">
-      <path d="M8 5v14l11-7z" />
-    </svg>
   );
 }

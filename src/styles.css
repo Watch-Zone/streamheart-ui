@@ -248,3 +248,28 @@
     scroll-behavior: auto !important;
   }
 }
+
+@utility float-dock {
+  background: color-mix(in oklab, var(--surface) 78%, transparent);
+  backdrop-filter: blur(22px) saturate(160%);
+  border: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
+  box-shadow: var(--shadow-float);
+}
+
+@utility live-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 70%, transparent);
+  animation: live-ping 1.8s ease-out infinite;
+}
+
+@keyframes live-ping {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--live) 65%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}

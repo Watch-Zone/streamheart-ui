@@ -36,15 +36,15 @@ function ExplorePage() {
 
   return (
     <AppShell>
-      <h1 className="text-xl font-bold tracking-tight">
-        {q ? `Results for "${q}"` : "Explore"}
+      <h1 className="mt-4 text-3xl font-extrabold sm:text-4xl">
+        {q ? <>Results for <span className="text-gradient">{q}</span></> : <>Explore <span className="text-gradient">everything</span></>}
       </h1>
 
       <div className="my-5 flex flex-wrap gap-2">
         <Link
           to="/explore"
           search={{ q: q || undefined }}
-          className={`rounded-full border border-border px-3 py-1.5 text-sm ${!tag ? "bg-foreground text-background" : "bg-surface"}`}
+          className={`rounded-full border border-border/70 px-4 py-1.5 text-sm transition-colors ${!tag ? "gradient-brand border-transparent font-semibold text-primary-foreground" : "bg-surface/70 hover:bg-secondary"}`}
         >
           All
         </Link>
@@ -53,7 +53,7 @@ function ExplorePage() {
             key={t}
             to="/explore"
             search={{ q: q || undefined, tag: t }}
-            className={`rounded-full border border-border px-3 py-1.5 text-sm capitalize ${tag === t ? "bg-foreground text-background" : "bg-surface"}`}
+            className={`rounded-full border border-border/70 px-4 py-1.5 text-sm capitalize transition-colors ${tag === t ? "gradient-brand border-transparent font-semibold text-primary-foreground" : "bg-surface/70 hover:bg-secondary"}`}
           >
             {t}
           </Link>
@@ -63,7 +63,7 @@ function ExplorePage() {
       {isPending ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-video rounded-xl" />
+            <Skeleton key={i} className="aspect-video rounded-2xl" />
           ))}
         </div>
       ) : (

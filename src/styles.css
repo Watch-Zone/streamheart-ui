@@ -38,7 +38,9 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
-  --color-destructive: var(--destructive);
+  --color-live: var(--live);
+  --color-live-foreground: var(--live-foreground);
+
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);

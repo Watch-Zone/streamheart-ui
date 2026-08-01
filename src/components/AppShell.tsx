@@ -5,6 +5,7 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
+  Radio,
   Search,
   Upload,
   UserRound,
@@ -26,6 +27,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { to: "/", label: "Home", icon: Home },
   { to: "/explore", label: "Explore", icon: Compass },
+  { to: "/live", label: "Live", icon: Radio },
   { to: "/rooms", label: "Rooms", icon: Users },
   { to: "/dashboard", label: "Studio", icon: LayoutDashboard },
 ] as const;
@@ -33,17 +35,16 @@ const NAV = [
 export function BrandMark({ className }: { className?: string }) {
   return (
     <span className={cn("flex items-center gap-2", className)}>
-      <span className="gradient-brand glow relative flex h-8 w-8 items-center justify-center rounded-xl">
+      <span className="relative flex h-8 w-8 items-center justify-center rounded-xl bg-primary">
         <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-primary-foreground">
           <path d="M8 5v14l11-7z" />
         </svg>
       </span>
-      <span className="font-display text-lg font-extrabold tracking-tight">
-        Stream<span className="text-gradient">Hub</span>
-      </span>
+      <span className="font-display text-lg font-extrabold tracking-tight">StreamHub</span>
     </span>
   );
 }
+
 
 export function AppShell({
   children,

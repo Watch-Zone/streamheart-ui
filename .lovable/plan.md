@@ -1,44 +1,48 @@
 ## Goal
 
-Recreate the StreamHub video-streaming UI from `Watch-Zone/VideoStream-UI` in this project. The original is a Next.js App Router app, which can't run here — I'll rebuild the same pages, layout and dark YouTube-like styling on this project's React + TanStack Start stack, and back it with Lovable Cloud instead of the external NestJS API.
+Move away from the YouTube-style grid to a cinematic OTT streaming look (dark navy/indigo gradients, glow accents, full-bleed hero banners, horizontal rails, poster tiles) — inspired by premium streaming apps, with our own branding, not a copy of anyone's logo or artwork. Plus a new **Rooms** feature for watch-together style sessions with chat and screen sharing.
 
-## Pages
+## 1. Redesign — new visual system
 
-| Route | Content |
-|---|---|
-| `/` | Public feed — sidebar + responsive video grid with thumbnails, title, channel, views, duration |
-| `/videos/$id` | Watch page — player, title/description/tags, channel row, like/subscribe actions, comments panel, related videos |
-| `/explore` | Search UI with query, filters, result grid |
-| `/upload` | Protected — file picker, title/description/tags/visibility, upload progress bar |
-| `/dashboard` | Protected — creator's own videos, views, edit/delete |
-| `/auth` | Sign in + sign up (email/password and Google) |
-| `/reset-password` | Password reset completion |
+- New tokens in `src/styles.css`: deep midnight background, indigo→violet gradients, soft glow shadows, glass surfaces, larger radii, display typeface for headings.
+- Replace the left-sidebar shell with a **floating top nav bar** (logo, Home, Explore, Rooms, search, avatar) that turns translucent on scroll, plus a bottom tab bar on mobile.
+- **Home**: full-bleed autoplaying hero banner with gradient scrim, title, description and Play/Add buttons; below it horizontal scroll rails ("Trending Now", "New Releases", "Continue Watching", "Recommended") with 16:9 poster cards that lift and glow on hover.
+- **Watch page**: cinema layout — large player, metadata bar with pills, gradient panels for description/comments, related titles as a rail.
+- **Explore**: hero search with category chips and poster grid.
+- **Upload / Dashboard / Auth**: restyled to match (glass cards, gradient CTAs).
 
-Shared shell: top bar (logo, search, upload, account menu) + collapsible left sidebar (Home, Explore, Subscriptions, Your videos), matching the original's dark theme.
+## 2. Rooms feature
 
-## Backend (Lovable Cloud)
 
-- Enable Cloud; email/password + Google sign-in.
-- `profiles` table (display name, handle, avatar) auto-created on signup by trigger.
-- `videos` table: owner, title, description, tags, visibility, duration, view_count, thumbnail/video paths, created_at.
-- `video_likes` and `comments` tables.
-- `subscriptions` table (subscriber → channel).
-- Storage buckets: `videos` (private-by-owner reads via signed URL or public if you prefer simple playback) and `thumbnails` (public).
-- RLS on every table: public read for public videos, owner-scoped read for private/unlisted, owner-only writes; grants included in each migration.
-- Reads/writes via TanStack server functions; protected pages under `_authenticated`.
-- Seed migration with a handful of demo videos so the feed isn't empty on first load.
+| Route            | Content                                                               |
+| ---------------- | --------------------------------------------------------------------- |
+| `/rooms`         | List of your rooms + Create room + Join by ID & password              |
+| `/rooms/$roomId` | The live room: participant strip, screen-share stage, live chat panel |
 
-## Playback note
 
-The original streams HLS from a transcoding backend. Lovable Cloud has no transcoder, so playback will use the uploaded file directly in a styled HTML5 player (progress, volume, fullscreen, speed). Same UI, no adaptive bitrate.
+**Create/Join**
+
+- Create returns a short human-friendly Room ID and takes a password. Password is hashed (bcrypt-style) and verified server-side; never sent to the client.
+- Joining with correct ID + password grants a membership row; membership is what RLS checks for chat and presence.
+
+**Inside the room**
+
+- Live chat: messages table + Realtime subscription, message bubbles with avatar, name and timestamp.
+- Screen sharing: `getDisplayMedia` + WebRTC peer connections, with Realtime broadcast channels for offer/answer/ICE signalling. Whoever shares becomes the stage; others see the stream. Works for small groups (a handful of participants per room).
+- Presence list showing who's in the room, plus mic/leave controls and a "Stop sharing" button.
 
 ## Technical details
 
-- Routes in `src/routes/`, per-route `head()` metadata (title, description, og/twitter).
-- Design tokens (dark surfaces, red accent, radii) defined in `src/styles.css` — no hardcoded colors in components.
-- Upload progress via XHR/`onUploadProgress` against Cloud storage.
-- Shared UI in `src/components/` (VideoCard, VideoGrid, AppSidebar, PlayerShell, CommentList).
+- New tables: `rooms` (id, code, name, owner, password_hash, created_at), `room_members`, `room_messages` — each with GRANTs, RLS scoped to membership, and Realtime enabled on messages.
+- Password hash + verification and room creation/join go through TanStack server functions; screen-share signalling is client-side over Supabase Realtime broadcast (no media touches the server).
+- Reusable components: `HeroBanner`, `Rail`, `PosterCard`, `TopNav`, `RoomStage`, `RoomChat`.
+- Per-route `head()` metadata updated for the new sections; rooms are `noindex`.
+- Fixes the current hydration warning on the home page along the way.
 
-## Not included
+## Notes
 
-- HLS/adaptive transcoding, live streaming and live chat (the repo's socket-based live features), Clerk/Paseto auth (replaced by Cloud auth), AWS Amplify config.
+- Screen sharing is peer-to-peer, so it's best with roughly 2–6 people per room; browser support requires a desktop browser (mobile browsers can watch but not share).
+- No DRM, no synced playback of platform video across participants in this pass — the shared experience is chat + screen share. Say the word and I'll add synced playback next.  
+
+- prefect also try a good teaming architecture inside it, so which look more amzing - and also try to use the animation inside the UI side - make sure our page is remain light - No lag or any things like that --
+  &nbsp;

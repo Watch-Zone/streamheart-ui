@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Globe, MapPin, Radio, Eye, Film, Users } from "lucide-react";
+import { Globe, MapPin, Eye, Film, Users } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -295,4 +295,3 @@ function EditProfileDialog({
   );
 }
 
-export { Radio };

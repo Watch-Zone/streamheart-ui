@@ -126,7 +126,7 @@ export function AppShell({
           <Button
             asChild
             size="sm"
-            className="gradient-brand hidden rounded-full font-semibold text-primary-foreground shadow-none transition-transform hover:scale-[1.03] sm:inline-flex"
+            className="hidden rounded-full font-semibold shadow-none transition-transform hover:scale-[1.03] sm:inline-flex"
           >
             <Link to="/upload">
               <Upload className="mr-2 h-4 w-4" /> Upload
@@ -137,7 +137,7 @@ export function AppShell({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account menu">
-                  <span className="gradient-brand flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-primary-foreground">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                     {(user.email ?? "U").slice(0, 2).toUpperCase()}
                   </span>
                 </Button>
@@ -148,7 +148,15 @@ export function AppShell({
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
+                  <Link to="/profile/$userId" params={{ userId: user.id }}>
+                    My profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link to="/dashboard">Creator studio</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/live">Live now</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link to="/rooms">My rooms</Link>
@@ -174,28 +182,49 @@ export function AppShell({
 
       <main
         className={cn(
-          "relative z-10 min-h-[70vh] pb-28 lg:pb-16",
+          "relative z-10 min-h-[70vh] pb-32 lg:pb-16",
           bleed ? "" : "mx-auto max-w-[1600px] px-4 pt-6 sm:px-6",
         )}
       >
         {children}
       </main>
 
-      <nav className="glass fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-border/60 py-2 lg:hidden">
-        {NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={cn(
-              "flex min-w-0 flex-col items-center gap-1 px-3 py-1 text-[11px] font-medium text-muted-foreground transition-colors",
-              isActive(item.to) && "text-foreground",
-            )}
-          >
-            <item.icon className={cn("h-5 w-5 shrink-0", isActive(item.to) && "text-primary")} />
-            <span className="truncate">{item.label}</span>
-          </Link>
-        ))}
+      {/* Compact floating dock — icons only, active item expands into a pill */}
+      <nav
+        aria-label="Primary"
+        className="fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex justify-center px-4 lg:hidden"
+      >
+        <div className="float-dock flex items-center gap-1 rounded-full p-1.5">
+          {NAV.map((item) => {
+            const active = isActive(item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-11 items-center justify-center gap-2 rounded-full px-3.5 text-[12px] font-semibold transition-all duration-300 ease-out",
+                  active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground active:scale-95",
+                )}
+              >
+                <item.icon className="h-[18px] w-[18px] shrink-0" />
+                <span
+                  className={cn(
+                    "overflow-hidden whitespace-nowrap transition-all duration-300",
+                    active ? "max-w-[72px] opacity-100" : "max-w-0 opacity-0",
+                  )}
+                >
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
+
 
       <footer className="relative z-10 hidden border-t border-border/60 py-8 text-center text-xs text-muted-foreground lg:block">
         StreamHub — stream, upload and watch together.

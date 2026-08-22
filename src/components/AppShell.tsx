@@ -144,8 +144,8 @@ export function AppShell({
                       src={user.imageUrl}
                       alt=""
                       className="h-8 w-8 rounded-full object-cover"
-                creaseless
                     />
+
                   ) : (
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                       {(user.primaryEmailAddress?.emailAddress ?? "U").slice(0, 2).toUpperCase()}

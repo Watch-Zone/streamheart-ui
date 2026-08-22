@@ -25,12 +25,27 @@ export function publicClient(): DB {
 const SELECT =
   "id, owner_id, channel_name, title, description, tags, visibility, duration_seconds, view_count, video_url, thumbnail_url, created_at";
 
+// Signed URLs embed a fresh token on every call, which makes the SSR markup and
+// the hydrated client markup disagree. Cache each signed URL well inside its own
+// lifetime so repeated renders reuse the exact same link.
+const SIGNED_TTL_SECONDS = 60 * 60 * 6;
+const SIGNED_CACHE_MS = 60 * 60 * 1000;
+const signedCache = new Map<string, { url: string; expiresAt: number }>();
+
 async function signOne(client: DB, bucket: string, value: string | null): Promise<string | null> {
   if (!value) return null;
   if (value.startsWith("http://") || value.startsWith("https://")) return value;
-  const { data } = await client.storage.from(bucket).createSignedUrl(value, 60 * 60 * 6);
-  return data?.signedUrl ?? null;
+
+  const cacheKey = `${bucket}/${value}`;
+  const cached = signedCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+
+  const { data } = await client.storage.from(bucket).createSignedUrl(value, SIGNED_TTL_SECONDS);
+  const url = data?.signedUrl ?? null;
+  if (url) signedCache.set(cacheKey, { url, expiresAt: Date.now() + SIGNED_CACHE_MS });
+  return url;
 }
+
 
 export async function withSignedMedia(client: DB, rows: VideoDTO[]): Promise<VideoDTO[]> {
   return Promise.all(

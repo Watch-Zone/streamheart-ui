@@ -1,13 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { HeroBanner } from "@/components/HeroBanner";
 import { Rail } from "@/components/VideoCard";
 import { Button } from "@/components/ui/button";
-import { getFeed } from "@/lib/videos.functions";
-
-const feedQuery = queryOptions({ queryKey: ["feed"], queryFn: () => getFeed() });
+import { Skeleton } from "@/components/ui/skeleton";
+import { getFeed } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -16,46 +16,52 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "StreamHub is a cinematic streaming platform: browse featured titles, upload your own videos and watch together in private rooms with chat and screen sharing.",
+          "StreamHub is a cinematic streaming platform: browse trending titles, upload your own videos and watch together in private rooms with live chat.",
       },
       { property: "og:title", content: "StreamHub — Stream, upload and watch together" },
       {
         property: "og:description",
-        content: "Featured titles, creator uploads and private watch-together rooms with live chat.",
+        content: "Trending titles, creator uploads and private watch-together rooms with live chat.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  loader: ({ context }) => context.queryClient.ensureQueryData(feedQuery),
   component: FeedPage,
-  errorComponent: () => (
-    <AppShell>
-      <p className="text-sm text-muted-foreground">The feed could not be loaded. Try refreshing.</p>
-    </AppShell>
-  ),
 });
 
 function FeedPage() {
-  const { data } = useSuspenseQuery(feedQuery);
-  const featured = data[0];
-  const trending = [...data].sort((a, b) => Number(b.view_count) - Number(a.view_count));
+  const { data, isPending, isError } = useQuery({ queryKey: qk.feed, queryFn: getFeed });
+
+  const featured = data?.trending[0] ?? data?.forYou[0];
 
   return (
     <AppShell bleed>
-      {featured ? (
+      {isPending ? (
+        <Skeleton className="h-[68vh] min-h-[420px] w-full rounded-none" />
+      ) : featured ? (
         <HeroBanner video={featured} />
       ) : (
         <div className="aurora px-4 pt-24 text-center sm:px-6">
-          <h1 className="text-3xl font-extrabold">Nothing streaming yet</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Upload your first video to get started.</p>
+          <h1 className="text-3xl font-extrabold">
+            {isError ? "The feed is unavailable" : "Nothing streaming yet"}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isError
+              ? "We couldn't reach the CineView API. Try again in a moment."
+              : "Upload your first video to get started."}
+          </p>
         </div>
       )}
 
       <div className="relative z-10 mx-auto -mt-8 max-w-[1600px] px-4 sm:px-6">
-        <Rail title="Trending now" videos={trending.slice(0, 12)} />
-        <Rail title="New releases" videos={data.slice(0, 12)} wide />
-        <Rail title="Because you watch on StreamHub" videos={[...data].reverse().slice(0, 12)} />
+        {data && (
+          <>
+            <Rail title={data.trendingTitle} videos={data.trending} />
+            <Rail title="For you" videos={data.forYou} wide />
+            <Rail title="From your subscriptions" videos={data.subscriptions} />
+          </>
+        )}
 
         <section className="panel mt-14 overflow-hidden rounded-3xl p-8 sm:p-12">
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
@@ -67,8 +73,8 @@ function FeedPage() {
                 Create a <span className="text-gradient">Room</span> and watch together
               </h2>
               <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-                Share a room ID and password with friends. Chat in real time and share your screen —
-                like a private cinema meet, right inside StreamHub.
+                Share a room code and password with friends, then chat in real time — a private cinema,
+                right inside StreamHub.
               </p>
             </div>
             <Button

@@ -1,21 +1,15 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { Film, ImageIcon, Loader2, UploadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { supabase } from "@/integrations/supabase/client";
-import { createVideo } from "@/lib/videos.functions";
+import { confirmUpload, createUploadUrls } from "@/lib/api/endpoints";
 
 export const Route = createFileRoute("/_authenticated/upload")({
   head: () => ({
@@ -23,89 +17,86 @@ export const Route = createFileRoute("/_authenticated/upload")({
       { title: "Upload a video — StreamHub" },
       {
         name: "description",
-        content: "Upload an MP4, add a thumbnail, tags and visibility, and publish to StreamHub.",
+        content: "Upload your video to StreamHub, add a title, tags and thumbnail, and publish it to your channel.",
       },
       { property: "og:title", content: "Upload a video — StreamHub" },
-      { property: "og:description", content: "Publish your video to StreamHub in a few steps." },
+      { property: "og:description", content: "Upload, describe and publish a video to your StreamHub channel." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: UploadPage,
 });
 
+function extensionOf(file: File, fallback: string) {
+  const parts = file.name.split(".");
+  return parts.length > 1 ? parts[parts.length - 1]!.toLowerCase() : fallback;
+}
+
+/** Presigned S3 PUT with progress; fetch has no upload progress events. */
+function putWithProgress(url: string, file: File, onProgress: (pct: number) => void) {
+  return new Promise<void>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("PUT", url);
+    request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    request.onload = () =>
+      request.status >= 200 && request.status < 300
+        ? resolve()
+        : reject(new Error(`Upload failed (${request.status})`));
+    request.onerror = () => reject(new Error("Upload failed — network error"));
+    request.send(file);
+  });
+}
+
 function UploadPage() {
   const navigate = useNavigate();
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [thumbFile, setThumbFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [tags, setTags] = useState("");
-  const [visibility, setVisibility] = useState("public");
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [thumbFile, setThumbFile] = useState<File | null>(null);
-  const [duration, setDuration] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [category, setCategory] = useState("General");
+  const [isPublic, setIsPublic] = useState(true);
   const [progress, setProgress] = useState(0);
+  const [busy, setBusy] = useState(false);
 
-  function onVideoPick(file: File | null) {
-    setVideoFile(file);
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-    probe.onloadedmetadata = () => {
-      setDuration(Math.round(probe.duration || 0));
-      URL.revokeObjectURL(url);
-    };
-    probe.src = url;
-  }
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!videoFile || !title.trim()) return;
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!videoFile) {
-      toast.error("Choose a video file first.");
-      return;
-    }
     setBusy(true);
-    setProgress(10);
+    setProgress(0);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user!.id;
-      const stamp = Date.now();
-      const videoPath = `${uid}/${stamp}-${videoFile.name.replace(/[^\w.-]/g, "_")}`;
-
-      const upload = await supabase.storage.from("videos").upload(videoPath, videoFile, {
+      const ticket = await createUploadUrls({
+        videoExt: extensionOf(videoFile, "mp4"),
         contentType: videoFile.type || "video/mp4",
-        upsert: false,
+        ...(thumbFile ? { thumbnailExt: extensionOf(thumbFile, "jpg") } : {}),
       });
-      if (upload.error) throw upload.error;
-      setProgress(65);
 
-      let thumbPath: string | null = null;
-      if (thumbFile) {
-        thumbPath = `${uid}/${stamp}-${thumbFile.name.replace(/[^\w.-]/g, "_")}`;
-        const thumbUpload = await supabase.storage
-          .from("thumbnails")
-          .upload(thumbPath, thumbFile, { contentType: thumbFile.type, upsert: false });
-        if (thumbUpload.error) throw thumbUpload.error;
+      await putWithProgress(ticket.videoUploadUrl, videoFile, setProgress);
+
+      if (thumbFile && ticket.thumbnailUploadUrl) {
+        await putWithProgress(ticket.thumbnailUploadUrl, thumbFile, () => {});
       }
-      setProgress(85);
 
-      const result = await createVideo({
-        data: {
-          title,
-          description,
-          tags: tags
-            .split(",")
-            .map((t) => t.trim().toLowerCase())
-            .filter(Boolean)
-            .slice(0, 12),
-          visibility: visibility as "public" | "unlisted" | "private",
-          duration_seconds: duration,
-          video_path: videoPath,
-          thumbnail_path: thumbPath,
-        },
+      await confirmUpload({
+        title: title.trim(),
+        description: description.trim(),
+        tags: tags
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+          .slice(0, 10),
+        category,
+        isPublic,
+        fileKey: ticket.videoKey,
       });
-      setProgress(100);
-      toast.success("Video published");
-      navigate({ to: "/videos/$id", params: { id: result.id } });
+
+      toast.success("Upload complete — processing has started");
+      navigate({ to: "/dashboard" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Upload failed");
     } finally {
@@ -115,93 +106,107 @@ function UploadPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-2xl">
-        <h1 className="text-xl font-bold tracking-tight">Upload a video</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          MP4 files play best. Your video appears on{" "}
-          <Link to="/dashboard" className="text-primary underline">
-            your videos
-          </Link>{" "}
-          right after publishing.
+      <div className="mx-auto max-w-2xl pt-6">
+        <h1 className="font-display text-3xl font-extrabold tracking-tight">Upload a video</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Your file is uploaded straight to storage, then transcoded for streaming.
         </p>
 
-        <form className="mt-6 space-y-5" onSubmit={submit}>
-          <div className="space-y-1.5">
-            <Label htmlFor="video">Video file</Label>
+        <form className="panel mt-8 space-y-6 rounded-3xl p-6" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="video-file" className="flex items-center gap-2">
+              <Film className="h-4 w-4 text-brand" /> Video file
+            </Label>
             <Input
-              id="video"
+              id="video-file"
               type="file"
               accept="video/*"
               required
-              className="bg-surface"
-              onChange={(e) => onVideoPick(e.target.files?.[0] ?? null)}
+              onChange={(event) => setVideoFile(event.target.files?.[0] ?? null)}
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="thumb">Thumbnail (optional)</Label>
+          <div className="space-y-2">
+            <Label htmlFor="thumb-file" className="flex items-center gap-2">
+              <ImageIcon className="h-4 w-4 text-brand" /> Thumbnail (optional)
+            </Label>
             <Input
-              id="thumb"
+              id="thumb-file"
               type="file"
               accept="image/*"
-              className="bg-surface"
-              onChange={(e) => setThumbFile(e.target.files?.[0] ?? null)}
+              onChange={(event) => setThumbFile(event.target.files?.[0] ?? null)}
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
             <Input
               id="title"
-              required
-              maxLength={140}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="bg-surface"
+              onChange={(event) => setTitle(event.target.value)}
+              maxLength={140}
+              required
             />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              rows={5}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="bg-surface"
+              onChange={(event) => setDescription(event.target.value)}
+              maxLength={2000}
+              rows={4}
             />
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-1.5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
               <Label htmlFor="tags">Tags (comma separated)</Label>
               <Input
                 id="tags"
                 value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="music, live"
-                className="bg-surface"
+                onChange={(event) => setTags(event.target.value)}
+                placeholder="action, trailer"
+                maxLength={200}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="visibility">Visibility</Label>
-              <Select value={visibility} onValueChange={setVisibility}>
-                <SelectTrigger id="visibility" className="bg-surface">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="public">Public</SelectItem>
-                  <SelectItem value="unlisted">Unlisted</SelectItem>
-                  <SelectItem value="private">Private</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Input
+                id="category"
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                maxLength={40}
+              />
             </div>
           </div>
 
-          {busy && <Progress value={progress} />}
+          <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-surface/60 p-4">
+            <div>
+              <p className="text-sm font-semibold">Public</p>
+              <p className="text-xs text-muted-foreground">Anyone can find and watch this video.</p>
+            </div>
+            <Switch checked={isPublic} onCheckedChange={setIsPublic} aria-label="Public video" />
+          </div>
 
-          <Button type="submit" disabled={busy} className="w-full sm:w-auto">
-            {busy ? "Publishing…" : "Publish video"}
+          {busy && (
+            <div className="space-y-2">
+              <Progress value={progress} />
+              <p className="text-xs text-muted-foreground">Uploading… {progress}%</p>
+            </div>
+          )}
+
+          <Button type="submit" className="w-full rounded-full" disabled={busy || !videoFile || !title.trim()}>
+            {busy ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading
+              </>
+            ) : (
+              <>
+                <UploadCloud className="mr-2 h-4 w-4" /> Publish video
+              </>
+            )}
           </Button>
         </form>
       </div>

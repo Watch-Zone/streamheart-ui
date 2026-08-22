@@ -1,254 +1,214 @@
-import { createFileRoute, Link, notFound, useNavigate } from "@tanstack/react-router";
-import { queryOptions, useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
-import { ThumbsUp, Share2 } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/clerk-react";
+import { useEffect, useState } from "react";
+import { Heart, MessageSquare, Play } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
+import { VideoPlayer } from "@/components/VideoPlayer";
+import { VideoCard } from "@/components/VideoCard";
+import { TimeAgo } from "@/components/TimeAgo";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { useSession } from "@/hooks/use-session";
-import { formatViews, formatDuration } from "@/lib/format";
-import { TimeAgo } from "@/components/TimeAgo";
-import {
-  addComment,
-  getComments,
-  getLikeCount,
-  getMyLike,
-  getVideo,
-  registerView,
-  toggleLike,
-} from "@/lib/videos.functions";
-
-const videoQuery = (id: string) =>
-  queryOptions({ queryKey: ["video", id], queryFn: () => getVideo({ data: { id } }) });
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { formatViews } from "@/lib/format";
+import { getVideo, likeVideo, postComment, recordView, unlikeVideo } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
+import { ApiError } from "@/lib/api/http";
 
 export const Route = createFileRoute("/videos/$id")({
-  loader: async ({ context, params }) => {
-    const data = await context.queryClient.ensureQueryData(videoQuery(params.id));
-    if (!data) throw notFound();
-    return data;
-  },
-  head: ({ loaderData }) => {
-    if (!loaderData) {
-      return {
-        meta: [{ title: "Video unavailable — StreamHub" }, { name: "robots", content: "noindex" }],
-      };
-    }
-    const { video } = loaderData;
-    const description = video.description.slice(0, 150) || `Watch ${video.title} on StreamHub.`;
-    return {
-      meta: [
-        { title: `${video.title} — StreamHub` },
-        { name: "description", content: description },
-        { property: "og:title", content: video.title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "video.other" },
-      ],
-    };
-  },
+  ssr: false,
+  head: () => ({
+    meta: [
+      { title: "Watch — StreamHub" },
+      {
+        name: "description",
+        content: "Watch this title on StreamHub, join the conversation in the comments and discover more.",
+      },
+      { property: "og:title", content: "Watch — StreamHub" },
+      { property: "og:description", content: "Watch this title on StreamHub and discover more from the creator." },
+      { property: "og:type", content: "video.other" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: WatchPage,
-  notFoundComponent: () => (
-    <AppShell>
-      <p className="text-sm text-muted-foreground">
-        This video doesn&apos;t exist.{" "}
-        <Link to="/" className="text-primary underline">
-          Back to the feed
-        </Link>
-      </p>
-    </AppShell>
-  ),
-  errorComponent: () => (
-    <AppShell>
-      <p className="text-sm text-muted-foreground">This video could not be loaded.</p>
-    </AppShell>
-  ),
 });
 
 function WatchPage() {
   const { id } = Route.useParams();
-  const { data } = useSuspenseQuery(videoQuery(id));
-  const { user } = useSession();
-  const navigate = useNavigate();
+  const { isSignedIn, isLoaded } = useAuth();
   const queryClient = useQueryClient();
-  const [body, setBody] = useState("");
-  const viewed = useRef(false);
+  const [comment, setComment] = useState("");
+
+  const { data, isPending, error } = useQuery({
+    queryKey: qk.video(id),
+    queryFn: () => getVideo(id),
+    enabled: isLoaded && Boolean(isSignedIn),
+    retry: false,
+  });
 
   useEffect(() => {
-    if (viewed.current) return;
-    viewed.current = true;
-    void registerView({ data: { id } });
-  }, [id]);
+    if (data) void recordView(id);
+  }, [data, id]);
 
-  const comments = useQuery({
-    queryKey: ["comments", id],
-    queryFn: () => getComments({ data: { id } }),
-  });
-  const likes = useQuery({ queryKey: ["likes", id], queryFn: () => getLikeCount({ data: { id } }) });
-  const myLike = useQuery({
-    queryKey: ["my-like", id, user?.id ?? null],
-    queryFn: () => getMyLike({ data: { id } }),
-    enabled: Boolean(user),
+  const toggleLike = useMutation({
+    mutationFn: () => (data?.liked ? unlikeVideo(id) : likeVideo(id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.video(id) }),
+    onError: (err: Error) => toast.error(err.message),
   });
 
-  const likeMutation = useMutation({
-    mutationFn: () => toggleLike({ data: { id } }),
+  const addComment = useMutation({
+    mutationFn: () => postComment(id, comment.trim()),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["likes", id] });
-      void queryClient.invalidateQueries({ queryKey: ["my-like", id] });
+      setComment("");
+      toast.success("Comment posted");
+      void queryClient.invalidateQueries({ queryKey: qk.video(id) });
     },
-    onError: () => toast.error("Could not update your like."),
+    onError: (err: Error) => toast.error(err.message),
   });
 
-  const commentMutation = useMutation({
-    mutationFn: () => addComment({ data: { id, body } }),
-    onSuccess: () => {
-      setBody("");
-      void queryClient.invalidateQueries({ queryKey: ["comments", id] });
-    },
-    onError: () => toast.error("Could not post your comment."),
-  });
+  if (isLoaded && !isSignedIn) {
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-md py-24 text-center">
+          <h1 className="text-2xl font-extrabold">Sign in to watch</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            CineView requires an account to stream this title.
+          </p>
+          <Button asChild className="mt-6 rounded-full px-8">
+            <Link to="/auth">Sign in</Link>
+          </Button>
+        </div>
+      </AppShell>
+    );
+  }
 
-  if (!data) return null;
-  const { video, related } = data;
+  if (isPending || !isLoaded) {
+    return (
+      <AppShell>
+        <Skeleton className="aspect-video w-full rounded-2xl" />
+        <Skeleton className="mt-6 h-8 w-2/3" />
+      </AppShell>
+    );
+  }
+
+  if (error || !data?.video.id) {
+    const message = error instanceof ApiError ? error.message : "This video could not be loaded.";
+    return (
+      <AppShell>
+        <div className="mx-auto max-w-md py-24 text-center">
+          <h1 className="text-2xl font-extrabold">Video unavailable</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const { video, related, comments } = data;
 
   return (
     <AppShell>
-      <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
-          <div className="overflow-hidden rounded-xl bg-black">
-            {video.video_url ? (
-              <video
-                key={video.video_url}
-                src={video.video_url}
-                poster={video.thumbnail_url ?? undefined}
-                controls
-                playsInline
-                className="aspect-video w-full"
-              />
+          <div className="aspect-video overflow-hidden rounded-2xl border border-border/60 bg-black">
+            {video.playbackUrl ? (
+              <VideoPlayer src={video.playbackUrl} poster={video.thumbnailUrl} autoPlay />
             ) : (
-              <div className="flex aspect-video items-center justify-center text-sm text-muted-foreground">
-                This video is still processing.
+              <div className="flex h-full items-center justify-center text-muted-foreground">
+                <Play className="h-10 w-10" />
               </div>
             )}
           </div>
 
-          <h1 className="mt-4 text-xl font-bold leading-snug">{video.title}</h1>
+          <div id="details" className="mt-5">
+            <h1 className="text-xl font-extrabold leading-tight sm:text-2xl">{video.title}</h1>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold uppercase">
-                {video.channel_name.slice(0, 2)}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <span className="gradient-brand flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold uppercase text-primary-foreground">
+                {video.channelName.slice(0, 2)}
               </span>
-              <div>
-                <p className="text-sm font-semibold">{video.channel_name}</p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{video.channelName}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDuration(video.duration_seconds)} · <TimeAgo iso={video.created_at} />
+                  {formatViews(video.viewCount)} · <TimeAgo iso={video.createdAt} />
                 </p>
               </div>
-            </div>
 
-            <div className="flex items-center gap-2">
               <Button
-                variant={myLike.data?.liked ? "default" : "secondary"}
+                variant={data.liked ? "default" : "secondary"}
                 size="sm"
-                className="rounded-full"
-                disabled={likeMutation.isPending}
-                onClick={() => {
-                  if (!user) {
-                    toast("Sign in to like this video.");
-                    navigate({ to: "/auth" });
-                    return;
-                  }
-                  likeMutation.mutate();
-                }}
+                className="ml-auto rounded-full"
+                disabled={toggleLike.isPending}
+                onClick={() => toggleLike.mutate()}
               >
-                <ThumbsUp className="mr-2 h-4 w-4" />
-                {likes.data ?? 0}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-full"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(window.location.href);
-                  toast.success("Link copied");
-                }}
-              >
-                <Share2 className="mr-2 h-4 w-4" /> Share
+                <Heart className={`mr-2 h-4 w-4 ${data.liked ? "fill-current" : ""}`} />
+                {video.likeCount || ""} {data.liked ? "Liked" : "Like"}
               </Button>
             </div>
-          </div>
 
-          <div className="mt-4 rounded-xl bg-surface p-4">
-            <p className="text-sm font-medium">
-              {formatViews(Number(video.view_count))} · <TimeAgo iso={video.created_at} />
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
-              {video.description || "No description provided."}
-            </p>
             {video.tags.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 {video.tags.map((tag) => (
-                  <Link
-                    key={tag}
-                    to="/explore"
-                    search={{ tag }}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    #{tag}
-                  </Link>
+                  <Badge key={tag} variant="secondary" className="rounded-full">
+                    {tag}
+                  </Badge>
                 ))}
               </div>
             )}
-          </div>
 
-          <Separator className="my-6" />
-
-          <section aria-label="Comments">
-            <h2 className="text-base font-semibold">
-              {comments.data?.length ?? 0} Comments
-            </h2>
-            {user ? (
-              <form
-                className="mt-4 flex gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (body.trim()) commentMutation.mutate();
-                }}
-              >
-                <Textarea
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  placeholder="Add a comment…"
-                  rows={2}
-                  className="bg-surface"
-                />
-                <Button type="submit" disabled={!body.trim() || commentMutation.isPending}>
-                  Comment
-                </Button>
-              </form>
-            ) : (
-              <p className="mt-3 text-sm text-muted-foreground">
-                <Link to="/auth" className="text-primary underline">
-                  Sign in
-                </Link>{" "}
-                to join the conversation.
+            {video.description && (
+              <p className="panel mt-4 whitespace-pre-wrap rounded-2xl p-4 text-sm text-muted-foreground">
+                {video.description}
               </p>
             )}
+          </div>
+
+          <section className="mt-10">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <MessageSquare className="h-4 w-4" /> Comments
+            </h2>
+
+            <form
+              className="mt-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (comment.trim()) addComment.mutate();
+              }}
+            >
+              <Textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                placeholder="Add a comment…"
+                maxLength={500}
+                rows={3}
+                className="rounded-2xl bg-surface/70"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                className="mt-2 rounded-full"
+                disabled={!comment.trim() || addComment.isPending}
+              >
+                Post comment
+              </Button>
+            </form>
 
             <ul className="mt-6 space-y-5">
-              {(comments.data ?? []).map((comment) => (
-                <li key={comment.id} className="flex gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold uppercase">
-                    {comment.author_name.slice(0, 2)}
+              {comments.length === 0 && (
+                <li className="text-sm text-muted-foreground">No comments yet — be the first.</li>
+              )}
+              {comments.map((entry) => (
+                <li key={entry.id} className="flex gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold uppercase">
+                    {entry.authorName.slice(0, 2)}
                   </span>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">{comment.author_name}</span>{" "}
-                      <TimeAgo iso={comment.created_at} />
+                      <span className="font-semibold text-foreground">{entry.authorName}</span>{" "}
+                      <TimeAgo iso={entry.createdAt} />
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm">{comment.body}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm">{entry.body}</p>
                   </div>
                 </li>
               ))}
@@ -256,36 +216,14 @@ function WatchPage() {
           </section>
         </div>
 
-        <aside className="space-y-4">
-          <h2 className="text-sm font-semibold text-muted-foreground">Up next</h2>
-          {related.map((item) => (
-            <Link
-              key={item.id}
-              to="/videos/$id"
-              params={{ id: item.id }}
-              className="flex gap-3 group"
-            >
-              <div className="aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-surface">
-                {item.thumbnail_url && (
-                  <img
-                    src={item.thumbnail_url}
-                    alt={`Thumbnail for ${item.title}`}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="line-clamp-2 text-sm font-medium group-hover:text-primary">
-                  {item.title}
-                </p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">{item.channel_name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {formatViews(Number(item.view_count))}
-                </p>
-              </div>
-            </Link>
-          ))}
+        <aside className="min-w-0">
+          <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-muted-foreground">Up next</h2>
+          <div className="space-y-6">
+            {related.length === 0 && <p className="text-sm text-muted-foreground">Nothing related yet.</p>}
+            {related.map((entry) => (
+              <VideoCard key={entry.id} video={entry} />
+            ))}
+          </div>
         </aside>
       </div>
     </AppShell>

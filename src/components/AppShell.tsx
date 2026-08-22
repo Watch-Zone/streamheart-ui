@@ -20,9 +20,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSession } from "@/hooks/use-session";
-import { supabase } from "@/integrations/supabase/client";
+import { useClerk, useUser } from "@clerk/clerk-react";
 import { cn } from "@/lib/utils";
+
 
 const NAV = [
   { to: "/", label: "Home", icon: Home },
@@ -56,7 +56,8 @@ export function AppShell({
   const [query, setQuery] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
-  const { user } = useSession();
+  const { user } = useUser();
+  const clerk = useClerk();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
@@ -67,9 +68,10 @@ export function AppShell({
   }, []);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await clerk.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
 
   const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
 
@@ -137,21 +139,26 @@ export function AppShell({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full" aria-label="Account menu">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                    {(user.email ?? "U").slice(0, 2).toUpperCase()}
-                  </span>
+                  {user.imageUrl ? (
+                    <img
+                      src={user.imageUrl}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+
+                  ) : (
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      {(user.primaryEmailAddress?.emailAddress ?? "U").slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56 rounded-xl">
                 <DropdownMenuItem disabled className="text-xs">
-                  {user.email}
+                  {user.primaryEmailAddress?.emailAddress}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link to="/profile/$userId" params={{ userId: user.id }}>
-                    My profile
-                  </Link>
-                </DropdownMenuItem>
+
                 <DropdownMenuItem asChild>
                   <Link to="/dashboard">Creator studio</Link>
                 </DropdownMenuItem>

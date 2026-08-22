@@ -1,23 +1,24 @@
-import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Radio, Users } from "lucide-react";
+import { useAuth } from "@clerk/clerk-react";
+import { useState } from "react";
+import { Radio } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
+import { TimeAgo } from "@/components/TimeAgo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { listLiveStreams, startLiveStream } from "@/lib/live.functions";
-import { useSession } from "@/hooks/use-session";
-import { TimeAgo } from "@/components/TimeAgo";
+import { listLiveStreams, startLiveStream } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
 
 export const Route = createFileRoute("/live/")({
   head: () => ({
@@ -25,14 +26,10 @@ export const Route = createFileRoute("/live/")({
       { title: "Live now — StreamHub" },
       {
         name: "description",
-        content:
-          "Watch StreamHub creators broadcasting live right now, join the real-time chat, or start your own live stream in seconds.",
+        content: "Watch creators streaming live right now on StreamHub, or start your own broadcast in seconds.",
       },
       { property: "og:title", content: "Live now — StreamHub" },
-      {
-        property: "og:description",
-        content: "Live broadcasts from StreamHub creators with real-time chat.",
-      },
+      { property: "og:description", content: "Watch creators streaming live, or start your own broadcast." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -41,54 +38,45 @@ export const Route = createFileRoute("/live/")({
 });
 
 function LivePage() {
-  const { user } = useSession();
+  const { isSignedIn } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", category: "General", playback_url: "" });
+  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("General");
 
-  const streams = useQuery({
-    queryKey: ["live-streams"],
-    queryFn: () => listLiveStreams({ data: { status: "all" } }),
+  const { data, isPending } = useQuery({
+    queryKey: qk.liveList,
+    queryFn: listLiveStreams,
+    refetchInterval: 20_000,
   });
 
-  const start = useMutation({
-    mutationFn: () =>
-      startLiveStream({
-        data: {
-          title: form.title,
-          description: form.description,
-          category: form.category || "General",
-          playback_url: form.playback_url.trim() ? form.playback_url.trim() : null,
-          thumbnail_url: null,
-        },
-      }),
-    onSuccess: ({ id }) => {
+  const goLive = useMutation({
+    mutationFn: () => startLiveStream({ title: title.trim(), category }),
+    onSuccess: () => {
       setOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["live-streams"] });
-      navigate({ to: "/live/$streamId", params: { streamId: id } });
+      setTitle("");
+      toast.success("You're live");
+      void queryClient.invalidateQueries({ queryKey: qk.liveList });
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not go live"),
+    onError: (error: Error) => toast.error(error.message),
   });
 
-  const all = streams.data ?? [];
-  const live = all.filter((item) => item.status === "live");
-  const past = all.filter((item) => item.status !== "live");
+  const streams = data ?? [];
 
   return (
     <AppShell>
-      <header className="mt-4 flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-4 pt-6">
         <div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-live/40 bg-live/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-live">
-            <span className="live-dot h-1.5 w-1.5 rounded-full" /> Live
-          </span>
-          <h1 className="mt-3 text-3xl font-bold">Live now</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Real-time broadcasts with live chat. Start your own in one click.
+          <h1 className="flex items-center gap-3 font-display text-3xl font-extrabold tracking-tight">
+            <span className="live-dot" /> Live now
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {streams.length} {streams.length === 1 ? "creator" : "creators"} broadcasting right now.
           </p>
         </div>
 
-        {user ? (
+        {isSignedIn ? (
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="rounded-full px-6 font-semibold">
@@ -98,125 +86,94 @@ function LivePage() {
             <DialogContent className="rounded-2xl">
               <DialogHeader>
                 <DialogTitle>Start a live stream</DialogTitle>
-                <DialogDescription>
-                  Give your broadcast a title. Add a playback link (MP4 or HLS) if you already have one.
-                </DialogDescription>
               </DialogHeader>
               <form
-                className="space-y-3"
+                className="space-y-4"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  start.mutate();
+                  if (title.trim()) goLive.mutate();
                 }}
               >
-                <Input
-                  value={form.title}
-                  onChange={(event) => setForm({ ...form, title: event.target.value })}
-                  placeholder="Stream title"
-                  maxLength={140}
-                  required
-                  aria-label="Stream title"
-                />
-                <Input
-                  value={form.category}
-                  onChange={(event) => setForm({ ...form, category: event.target.value })}
-                  placeholder="Category"
-                  maxLength={40}
-                  aria-label="Category"
-                />
-                <Textarea
-                  value={form.description}
-                  onChange={(event) => setForm({ ...form, description: event.target.value })}
-                  placeholder="What is this stream about?"
-                  maxLength={2000}
-                  aria-label="Description"
-                />
-                <Input
-                  value={form.playback_url}
-                  onChange={(event) => setForm({ ...form, playback_url: event.target.value })}
-                  placeholder="https://… playback link (optional)"
-                  maxLength={1000}
-                  aria-label="Playback link"
-                />
-                <Button type="submit" className="w-full rounded-full" disabled={start.isPending}>
-                  {start.isPending ? "Starting…" : "Go live"}
+                <div className="space-y-2">
+                  <Label htmlFor="live-title">Stream title</Label>
+                  <Input
+                    id="live-title"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    maxLength={140}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="live-category">Category</Label>
+                  <Input
+                    id="live-category"
+                    value={category}
+                    onChange={(event) => setCategory(event.target.value)}
+                    maxLength={40}
+                  />
+                </div>
+                <Button type="submit" className="w-full rounded-full" disabled={goLive.isPending}>
+                  {goLive.isPending ? "Starting…" : "Start streaming"}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
         ) : (
-          <Button asChild variant="secondary" className="rounded-full">
-            <Link to="/auth">Sign in to go live</Link>
+          <Button
+            variant="outline"
+            className="rounded-full"
+            onClick={() => navigate({ to: "/auth" })}
+          >
+            Sign in to go live
           </Button>
         )}
       </header>
 
-      <section className="mt-8">
-        {streams.isPending ? (
-          <p className="text-sm text-muted-foreground">Loading streams…</p>
-        ) : live.length === 0 ? (
-          <div className="panel rounded-2xl p-10 text-center">
-            <h2 className="text-lg font-semibold">Nobody is live right now</h2>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Be the first to go live and your stream shows up here instantly.
-            </p>
+      <section className="mt-10">
+        {isPending ? (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-video rounded-2xl" />
+            ))}
+          </div>
+        ) : streams.length === 0 ? (
+          <div className="panel rounded-3xl py-20 text-center">
+            <p className="text-sm text-muted-foreground">No one is live right now. Be the first.</p>
           </div>
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {live.map((stream) => (
-              <LiveCard key={stream.id} stream={stream} />
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {streams.map((stream) => (
+              <Link
+                key={stream.id}
+                to="/live/$streamId"
+                params={{ streamId: stream.id }}
+                className="group block"
+              >
+                <div className="relative aspect-video overflow-hidden rounded-2xl border border-border/60 bg-surface">
+                  {stream.thumbnailUrl ? (
+                    <img
+                      src={stream.thumbnailUrl}
+                      alt={`Live preview for ${stream.title}`}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="gradient-brand h-full w-full opacity-50" />
+                  )}
+                  <span className="absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide backdrop-blur">
+                    <span className="live-dot" /> Live
+                  </span>
+                </div>
+                <h2 className="mt-3 line-clamp-2 text-sm font-semibold">{stream.title}</h2>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {stream.hostName} · started <TimeAgo iso={stream.startedAt} />
+                </p>
+              </Link>
             ))}
           </div>
         )}
       </section>
-
-      {past.length > 0 ? (
-        <section className="mt-12">
-          <h2 className="text-lg font-semibold">Recently ended</h2>
-          <div className="mt-4 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {past.map((stream) => (
-              <LiveCard key={stream.id} stream={stream} />
-            ))}
-          </div>
-        </section>
-      ) : null}
     </AppShell>
-  );
-}
-
-function LiveCard({
-  stream,
-}: {
-  stream: { id: string; title: string; category: string; status: string; host_name: string; viewer_count: number; started_at: string };
-}) {
-  const isLive = stream.status === "live";
-  return (
-    <Link
-      to="/live/$streamId"
-      params={{ streamId: stream.id }}
-      className="panel group animate-rise block overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:border-primary/50"
-    >
-      <div className="relative flex aspect-video items-center justify-center bg-elevated">
-        <Radio className="h-8 w-8 text-muted-foreground transition-colors group-hover:text-primary" />
-        {isLive ? (
-          <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-live px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-live-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-live-foreground" /> Live
-          </span>
-        ) : (
-          <span className="absolute left-3 top-3 rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Ended
-          </span>
-        )}
-        <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-semibold">
-          <Users className="h-3 w-3" /> {stream.viewer_count}
-        </span>
-      </div>
-      <div className="p-4">
-        <h3 className="line-clamp-1 text-sm font-semibold">{stream.title}</h3>
-        <p className="mt-1 truncate text-xs text-muted-foreground">
-          {stream.host_name} · {stream.category} · <TimeAgo iso={stream.started_at} />
-        </p>
-      </div>
-    </Link>
   );
 }

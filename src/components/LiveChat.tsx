@@ -1,114 +1,97 @@
-import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@clerk/clerk-react";
+import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
-import { Link } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getLiveMessages, sendLiveMessage } from "@/lib/live.functions";
-import { useSession } from "@/hooks/use-session";
-import { initialsOf } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
+import { getVideo, postComment } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
 
+/** Live chat rides on the video comment stream, polled while the stream is on. */
 export function LiveChat({ streamId }: { streamId: string }) {
-  const [body, setBody] = useState("");
-  const { user } = useSession();
+  const { isSignedIn } = useAuth();
   const queryClient = useQueryClient();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
 
-  const messages = useQuery({
-    queryKey: ["live-messages", streamId],
-    queryFn: () => getLiveMessages({ data: { id: streamId } }),
+  const { data } = useQuery({
+    queryKey: qk.video(streamId),
+    queryFn: () => getVideo(streamId),
+    enabled: Boolean(isSignedIn),
+    refetchInterval: 6_000,
+    retry: false,
   });
 
-  useEffect(() => {
-    const channel = supabase
-      .channel(`live-messages-${streamId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "live_messages", filter: `stream_id=eq.${streamId}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: ["live-messages", streamId] });
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [streamId, queryClient]);
+  const messages = data?.comments ?? [];
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.data?.length]);
+    endRef.current?.scrollIntoView({ block: "end" });
+  }, [messages.length]);
 
   const send = useMutation({
-    mutationFn: () => sendLiveMessage({ data: { id: streamId, body } }),
+    mutationFn: () => postComment(streamId, draft.trim()),
     onSuccess: () => {
-      setBody("");
-      void queryClient.invalidateQueries({ queryKey: ["live-messages", streamId] });
+      setDraft("");
+      void queryClient.invalidateQueries({ queryKey: qk.video(streamId) });
     },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   return (
-    <aside className="panel flex h-[480px] flex-col rounded-2xl xl:h-[calc(100vh-11rem)]">
-      <div className="border-b border-border/60 px-4 py-3">
-        <h2 className="text-sm font-semibold">Live chat</h2>
-        <p className="text-xs text-muted-foreground">Messages appear instantly for everyone watching.</p>
-      </div>
+    <div className="panel flex h-[560px] flex-col rounded-2xl">
+      <header className="border-b border-border/60 px-4 py-3">
+        <h2 className="text-sm font-bold">Live chat</h2>
+      </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.isPending ? (
-          <p className="text-xs text-muted-foreground">Loading chat…</p>
-        ) : (messages.data ?? []).length === 0 ? (
-          <p className="text-xs text-muted-foreground">Be the first to say something.</p>
-        ) : (
-          (messages.data ?? []).map((message) => (
-            <div key={message.id} className="flex gap-2.5">
-              <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold">
-                {initialsOf(message.author_name)}
-              </span>
-              <p className="min-w-0 text-sm leading-snug">
-                <span className="mr-1.5 font-semibold text-brand">{message.author_name}</span>
-                <span className="text-foreground/90 break-words">{message.body}</span>
-              </p>
-            </div>
-          ))
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        {messages.length === 0 && (
+          <p className="text-sm text-muted-foreground">No messages yet. Say hello.</p>
         )}
-        <div ref={bottomRef} />
+        {messages.map((message) => (
+          <div key={message.id} className="flex gap-2.5">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-bold uppercase">
+              {message.authorName.slice(0, 2)}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-muted-foreground">
+                <span className="font-semibold text-foreground">{message.authorName}</span>{" "}
+                <TimeAgo iso={message.createdAt} />
+              </p>
+              <p className="break-words text-sm">{message.body}</p>
+            </div>
+          </div>
+        ))}
+        <div ref={endRef} />
       </div>
 
       <form
-        className="flex items-center gap-2 border-t border-border/60 p-3"
+        className="flex gap-2 border-t border-border/60 p-3"
         onSubmit={(event) => {
           event.preventDefault();
-          if (body.trim()) send.mutate();
+          if (draft.trim()) send.mutate();
         }}
       >
-        {user ? (
-          <>
-            <Input
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              placeholder="Send a message…"
-              maxLength={500}
-              aria-label="Live chat message"
-              className="h-10 rounded-full bg-surface/70"
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="h-10 w-10 shrink-0 rounded-full"
-              disabled={send.isPending || !body.trim()}
-              aria-label="Send message"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </>
-        ) : (
-          <Button asChild variant="secondary" className="w-full rounded-full">
-            <Link to="/auth">Sign in to chat</Link>
-          </Button>
-        )}
+        <Input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder={isSignedIn ? "Send a message…" : "Sign in to chat"}
+          maxLength={500}
+          disabled={!isSignedIn}
+          aria-label="Live chat message"
+          className="rounded-full bg-surface/70"
+        />
+        <Button
+          type="submit"
+          size="icon"
+          className="shrink-0 rounded-full"
+          disabled={!isSignedIn || !draft.trim() || send.isPending}
+          aria-label="Send message"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
       </form>
-    </aside>
+    </div>
   );
 }

@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Play } from "lucide-react";
 import { formatDuration, formatViews } from "@/lib/format";
 import { TimeAgo } from "@/components/TimeAgo";
-import type { VideoDTO } from "@/lib/video-types";
+import type { Video } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 export function PosterCard({
@@ -10,7 +10,7 @@ export function PosterCard({
   index = 0,
   wide = false,
 }: {
-  video: VideoDTO;
+  video: Video;
   index?: number;
   wide?: boolean;
 }) {
@@ -28,9 +28,9 @@ export function PosterCard({
           wide ? "aspect-video" : "aspect-[2/3]",
         )}
       >
-        {video.thumbnail_url ? (
+        {video.thumbnailUrl ? (
           <img
-            src={video.thumbnail_url}
+            src={video.thumbnailUrl}
             alt={`Cover art for ${video.title}`}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
@@ -43,9 +43,11 @@ export function PosterCard({
 
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/10 to-transparent opacity-90" />
 
-        <span className="absolute right-2 top-2 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-semibold tabular-nums backdrop-blur">
-          {formatDuration(video.duration_seconds)}
-        </span>
+        {video.durationSeconds > 0 && (
+          <span className="absolute right-2 top-2 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-semibold tabular-nums backdrop-blur">
+            {formatDuration(video.durationSeconds)}
+          </span>
+        )}
 
         <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
           <span className="gradient-brand flex h-12 w-12 items-center justify-center rounded-full shadow-glow">
@@ -56,7 +58,7 @@ export function PosterCard({
         <div className="absolute inset-x-0 bottom-0 p-3">
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug">{video.title}</h3>
           <p className="mt-1 truncate text-[11px] text-muted-foreground">
-            {video.channel_name} · {formatViews(Number(video.view_count))}
+            {video.channelName} · {formatViews(video.viewCount)}
           </p>
         </div>
       </div>
@@ -64,13 +66,13 @@ export function PosterCard({
   );
 }
 
-export function VideoCard({ video }: { video: VideoDTO }) {
+export function VideoCard({ video }: { video: Video }) {
   return (
     <Link to="/videos/$id" params={{ id: video.id }} className="group block" aria-label={video.title}>
       <div className="relative aspect-video overflow-hidden rounded-2xl border border-border/60 bg-surface">
-        {video.thumbnail_url ? (
+        {video.thumbnailUrl ? (
           <img
-            src={video.thumbnail_url}
+            src={video.thumbnailUrl}
             alt={`Thumbnail for ${video.title}`}
             loading="lazy"
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -80,21 +82,23 @@ export function VideoCard({ video }: { video: VideoDTO }) {
             <Play className="h-8 w-8" />
           </div>
         )}
-        <span className="absolute bottom-2 right-2 rounded-full bg-background/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
-          {formatDuration(video.duration_seconds)}
-        </span>
+        {video.durationSeconds > 0 && (
+          <span className="absolute bottom-2 right-2 rounded-full bg-background/85 px-2 py-0.5 text-[10px] font-semibold tabular-nums">
+            {formatDuration(video.durationSeconds)}
+          </span>
+        )}
       </div>
       <div className="mt-3 flex gap-3">
         <span className="gradient-brand mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold uppercase text-primary-foreground">
-          {video.channel_name.slice(0, 2)}
+          {video.channelName.slice(0, 2)}
         </span>
         <div className="min-w-0">
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug transition-colors group-hover:text-primary-glow">
             {video.title}
           </h3>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{video.channel_name}</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{video.channelName}</p>
           <p className="text-xs text-muted-foreground">
-            {formatViews(Number(video.view_count))} · <TimeAgo iso={video.created_at} />
+            {formatViews(video.viewCount)} · <TimeAgo iso={video.createdAt} />
           </p>
         </div>
       </div>
@@ -102,7 +106,7 @@ export function VideoCard({ video }: { video: VideoDTO }) {
   );
 }
 
-export function VideoGrid({ videos }: { videos: VideoDTO[] }) {
+export function VideoGrid({ videos }: { videos: Video[] }) {
   if (videos.length === 0) {
     return <p className="py-16 text-center text-sm text-muted-foreground">Nothing here yet.</p>;
   }
@@ -115,15 +119,7 @@ export function VideoGrid({ videos }: { videos: VideoDTO[] }) {
   );
 }
 
-export function Rail({
-  title,
-  videos,
-  wide = false,
-}: {
-  title: string;
-  videos: VideoDTO[];
-  wide?: boolean;
-}) {
+export function Rail({ title, videos, wide = false }: { title: string; videos: Video[]; wide?: boolean }) {
   if (videos.length === 0) return null;
   return (
     <section className="mt-10">

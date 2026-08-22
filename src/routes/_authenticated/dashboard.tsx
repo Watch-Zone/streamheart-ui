@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { deleteVideo, getMyVideos } from "@/lib/videos.functions";
-import { formatDuration, formatViews, timeAgo } from "@/lib/format";
+import { formatDuration, formatViews } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 import type { VideoDTO } from "@/lib/video-types";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -93,7 +94,7 @@ function DashboardPage() {
                 </Link>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {formatViews(Number(video.view_count))} ·{" "}
-                  {formatDuration(video.duration_seconds)} · {timeAgo(video.created_at)}
+                  {formatDuration(video.duration_seconds)} · <TimeAgo iso={video.created_at} />
                 </p>
                 <Badge variant="secondary" className="mt-2 capitalize">
                   {video.visibility}

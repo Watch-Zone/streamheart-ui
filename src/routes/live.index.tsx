@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { listLiveStreams, startLiveStream } from "@/lib/live.functions";
 import { useSession } from "@/hooks/use-session";
-import { timeAgo } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 
 export const Route = createFileRoute("/live/")({
   head: () => ({
@@ -214,7 +214,7 @@ function LiveCard({
       <div className="p-4">
         <h3 className="line-clamp-1 text-sm font-semibold">{stream.title}</h3>
         <p className="mt-1 truncate text-xs text-muted-foreground">
-          {stream.host_name} · {stream.category} · {timeAgo(stream.started_at)}
+          {stream.host_name} · {stream.category} · <TimeAgo iso={stream.started_at} />
         </p>
       </div>
     </Link>

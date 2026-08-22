@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createRoom, joinRoom, listMyRooms } from "@/lib/rooms.functions";
-import { timeAgo } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 
 export const Route = createFileRoute("/_authenticated/rooms/")({
   head: () => ({
@@ -196,7 +196,7 @@ function RoomsPage() {
                 >
                   {room.code} <Copy className="h-3.5 w-3.5" />
                 </button>
-                <p className="mt-2 text-xs text-muted-foreground">Created {timeAgo(room.created_at)}</p>
+                <p className="mt-2 text-xs text-muted-foreground"><TimeAgo iso={room.created_at} prefix="Created" /></p>
                 <Button asChild size="sm" className="mt-4 w-full rounded-full font-semibold">
                   <Link to="/rooms/$roomId" params={{ roomId: room.id }}>
                     Enter room

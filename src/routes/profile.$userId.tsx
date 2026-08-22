@@ -17,7 +17,8 @@ import {
 import { VideoCard } from "@/components/VideoCard";
 import { getProfile, updateMyProfile } from "@/lib/profile.functions";
 import { useSession } from "@/hooks/use-session";
-import { formatViews, initialsOf, timeAgo } from "@/lib/format";
+import { formatViews, initialsOf } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 
 export const Route = createFileRoute("/profile/$userId")({
   head: () => ({
@@ -114,7 +115,7 @@ function ProfilePage() {
               ) : null}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {p.handle} · joined {timeAgo(p.created_at)}
+              {p.handle} · <TimeAgo iso={p.created_at} prefix="joined" />
             </p>
             {p.bio ? <p className="mt-3 max-w-2xl text-sm text-foreground/90">{p.bio}</p> : null}
             <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">

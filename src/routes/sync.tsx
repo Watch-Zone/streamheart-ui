@@ -118,7 +118,7 @@ function SyncPage() {
                   <p className="text-xs text-muted-foreground">
                     {data?.lastPublishAt ? (
                       <>
-                        <TimeAgo date={data.lastPublishAt} /> ·{" "}
+                        <TimeAgo iso={data.lastPublishAt} /> ·{" "}
                         {new Date(data.lastPublishAt).toUTCString()}
                       </>
                     ) : (
@@ -166,7 +166,7 @@ function SyncPage() {
                         {data.commit.committedAt ? (
                           <>
                             {" · "}
-                            <TimeAgo date={data.commit.committedAt} />
+                            <TimeAgo iso={data.commit.committedAt} />
                           </>
                         ) : null}
                       </p>
@@ -183,7 +183,7 @@ function SyncPage() {
 
             <p className="flex items-center gap-2 pt-2 text-xs text-muted-foreground">
               <Github className="h-3.5 w-3.5" />
-              Checked {data ? <TimeAgo date={data.checkedAt} /> : null} · auto-refreshes every minute
+              Checked {data ? <TimeAgo iso={data.checkedAt} /> : null} · auto-refreshes every minute
             </p>
           </div>
         )}

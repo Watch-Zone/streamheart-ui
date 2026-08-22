@@ -1,147 +1,112 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Radio, Users } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useAuth } from "@clerk/clerk-react";
+import { Users } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
-import { Button } from "@/components/ui/button";
 import { LiveChat } from "@/components/LiveChat";
-import { endLiveStream, getLiveStream } from "@/lib/live.functions";
-import { useSession } from "@/hooks/use-session";
-import { TimeAgo } from "@/components/TimeAgo";
+import { VideoPlayer } from "@/components/VideoPlayer";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { endLiveStream, joinLiveStream, listLiveStreams } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
 
 export const Route = createFileRoute("/live/$streamId")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Live stream — StreamHub" },
       {
         name: "description",
-        content: "Watch this StreamHub live broadcast and join the real-time chat with other viewers.",
+        content: "Watch this StreamHub broadcast live and chat with the host and other viewers in real time.",
       },
       { property: "og:title", content: "Live stream — StreamHub" },
-      {
-        property: "og:description",
-        content: "A StreamHub live broadcast with real-time viewer chat.",
-      },
+      { property: "og:description", content: "Watch this StreamHub broadcast live and join the chat." },
       { property: "og:type", content: "video.other" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: LiveStreamPage,
+  component: LiveWatchPage,
 });
 
-function LiveStreamPage() {
+function LiveWatchPage() {
   const { streamId } = Route.useParams();
-  const { user } = useSession();
-  const queryClient = useQueryClient();
+  const { isLoaded, isSignedIn } = useAuth();
 
-  const stream = useQuery({
-    queryKey: ["live-stream", streamId],
-    queryFn: () => getLiveStream({ data: { id: streamId } }),
+  const { data: streams } = useQuery({ queryKey: qk.liveList, queryFn: listLiveStreams });
+  const stream = streams?.find((entry) => entry.id === streamId);
+
+  const { data: join, isPending } = useQuery({
+    queryKey: qk.liveJoin(streamId),
+    queryFn: () => joinLiveStream(streamId),
+    enabled: isLoaded && Boolean(isSignedIn),
+    retry: false,
   });
 
   const end = useMutation({
-    mutationFn: () => endLiveStream({ data: { id: streamId } }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["live-stream", streamId] });
-      void queryClient.invalidateQueries({ queryKey: ["live-streams"] });
-    },
+    mutationFn: () => endLiveStream(streamId),
+    onSuccess: () => toast.success("Stream ended"),
+    onError: (error: Error) => toast.error(error.message),
   });
 
-  if (stream.isPending) {
+  if (isLoaded && !isSignedIn) {
     return (
       <AppShell>
-        <p className="mt-10 text-sm text-muted-foreground">Loading stream…</p>
-      </AppShell>
-    );
-  }
-
-  if (!stream.data) {
-    return (
-      <AppShell>
-        <div className="mt-10">
-          <h1 className="text-2xl font-bold">Stream not found</h1>
-          <Button asChild className="mt-5 rounded-full">
-            <Link to="/live">Back to live</Link>
+        <div className="mx-auto max-w-md py-24 text-center">
+          <h1 className="text-2xl font-extrabold">Sign in to join the stream</h1>
+          <Button asChild className="mt-6 rounded-full px-8">
+            <Link to="/auth">Sign in</Link>
           </Button>
         </div>
       </AppShell>
     );
   }
 
-  const data = stream.data;
-  const isLive = data.status === "live";
-  const isHost = user?.id === data.owner_id;
-
   return (
     <AppShell>
-      <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0">
-          <div className="panel overflow-hidden rounded-2xl">
-            <div className="relative aspect-video bg-black">
-              {data.playback_url ? (
-                <video
-                  src={data.playback_url}
-                  controls
-                  autoPlay
-                  playsInline
-                  className="h-full w-full object-contain"
-                />
-              ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-muted-foreground">
-                  <Radio className="h-9 w-9" />
-                  <p className="text-sm">
-                    {isLive ? "Waiting for the host's video feed…" : "This stream has ended."}
-                  </p>
-                </div>
-              )}
-              {isLive ? (
-                <span className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-live px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-live-foreground">
-                  <span className="live-dot h-1.5 w-1.5 rounded-full bg-live-foreground" /> Live
-                </span>
-              ) : null}
-            </div>
+          <div className="aspect-video overflow-hidden rounded-2xl border border-border/60 bg-black">
+            {isPending ? (
+              <Skeleton className="h-full w-full" />
+            ) : join?.playbackUrl ? (
+              <VideoPlayer src={join.playbackUrl} poster={stream?.thumbnailUrl ?? null} autoPlay />
+            ) : (
+              <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                This broadcast has no playback source yet.
+              </div>
+            )}
           </div>
 
-          <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold">{data.title}</h1>
-              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <Link
-                  to="/profile/$userId"
-                  params={{ userId: data.owner_id }}
-                  className="font-semibold text-foreground hover:text-primary"
-                >
-                  {data.host_name}
-                </Link>
-                <span>·</span>
-                <span className="inline-flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" /> {data.viewer_count} watching
-                </span>
-                <span>·</span>
-                <span>{data.category}</span>
-                <span>·</span>
-                <span><TimeAgo iso={data.started_at} prefix="started" /></span>
-              </p>
-            </div>
-            {isHost && isLive ? (
-              <Button
-                variant="secondary"
-                className="rounded-full"
-                onClick={() => end.mutate()}
-                disabled={end.isPending}
-              >
-                End stream
-              </Button>
-            ) : null}
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-destructive">
+              <span className="live-dot" /> Live
+            </span>
+            <h1 className="text-xl font-extrabold leading-tight sm:text-2xl">
+              {stream?.title ?? "Live broadcast"}
+            </h1>
           </div>
 
-          {data.description ? (
-            <div className="panel mt-5 rounded-2xl p-5 text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-              {data.description}
-            </div>
-          ) : null}
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Users className="h-4 w-4" /> {stream?.viewerCount ?? 0} watching
+            </span>
+            {stream?.hostName && <span>Hosted by {stream.hostName}</span>}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto rounded-full text-destructive hover:text-destructive"
+              disabled={end.isPending}
+              onClick={() => end.mutate()}
+            >
+              End stream
+            </Button>
+          </div>
         </div>
 
-        <LiveChat streamId={streamId} />
+        <aside className="min-w-0">
+          <LiveChat streamId={streamId} />
+        </aside>
       </div>
     </AppShell>
   );

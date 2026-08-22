@@ -1,108 +1,86 @@
-import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getRoomMessages, sendRoomMessage } from "@/lib/rooms.functions";
-import { cn } from "@/lib/utils";
+import { TimeAgo } from "@/components/TimeAgo";
+import { getRoomMessages, sendRoomMessage } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
 
-export function RoomChat({ roomId, meId }: { roomId: string; meId: string }) {
-  const [body, setBody] = useState("");
+export function RoomChat({ code }: { code: string }) {
   const queryClient = useQueryClient();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
 
-  const messages = useQuery({
-    queryKey: ["room-messages", roomId],
-    queryFn: () => getRoomMessages({ data: { id: roomId } }),
+  const { data } = useQuery({
+    queryKey: qk.roomMessages(code),
+    queryFn: () => getRoomMessages(code),
+    refetchInterval: 4_000,
   });
 
-  useEffect(() => {
-    const channel = supabase
-      .channel(`room-messages-${roomId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "room_messages", filter: `room_id=eq.${roomId}` },
-        () => {
-          void queryClient.invalidateQueries({ queryKey: ["room-messages", roomId] });
-        },
-      )
-      .subscribe();
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [roomId, queryClient]);
+  const messages = data ?? [];
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.data?.length]);
+    endRef.current?.scrollIntoView({ block: "end" });
+  }, [messages.length]);
 
   const send = useMutation({
-    mutationFn: () => sendRoomMessage({ data: { id: roomId, body } }),
+    mutationFn: () => sendRoomMessage(code, draft.trim()),
     onSuccess: () => {
-      setBody("");
-      void queryClient.invalidateQueries({ queryKey: ["room-messages", roomId] });
+      setDraft("");
+      void queryClient.invalidateQueries({ queryKey: qk.roomMessages(code) });
     },
+    onError: (error: Error) => toast.error(error.message),
   });
 
   return (
-    <div className="panel flex h-[520px] flex-col rounded-2xl xl:h-[calc(100vh-11rem)]">
-      <div className="border-b border-border/60 px-4 py-3">
-        <h2 className="text-sm font-bold">Live chat</h2>
-        <p className="text-xs text-muted-foreground">Messages sync instantly with everyone in the room.</p>
-      </div>
+    <div className="panel flex h-[560px] flex-col rounded-2xl">
+      <header className="border-b border-border/60 px-4 py-3">
+        <h2 className="text-sm font-bold">Room chat</h2>
+      </header>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {messages.isPending ? (
-          <p className="text-xs text-muted-foreground">Loading messages…</p>
-        ) : (messages.data ?? []).length === 0 ? (
-          <p className="text-xs text-muted-foreground">No messages yet — say hello.</p>
-        ) : (
-          (messages.data ?? []).map((m) => {
-            const mine = m.user_id === meId;
-            return (
-              <div key={m.id} className={cn("flex flex-col gap-1", mine && "items-end")}>
-                <span className="px-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {mine ? "You" : m.author_name}
-                </span>
-                <span
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
-                    mine
-                      ? "gradient-brand rounded-br-sm text-primary-foreground"
-                      : "rounded-bl-sm bg-secondary text-secondary-foreground",
-                  )}
-                >
-                  {m.body}
-                </span>
-              </div>
-            );
-          })
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
+        {messages.length === 0 && (
+          <p className="text-sm text-muted-foreground">No messages yet — start the conversation.</p>
         )}
-        <div ref={bottomRef} />
+        {messages.map((message) => (
+          <div key={message.id} className="flex gap-2.5">
+            <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-bold uppercase">
+              {message.authorName.slice(0, 2)}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] text-muted-foreground">
+                <span className="font-semibold text-foreground">{message.authorName}</span>{" "}
+                <TimeAgo iso={message.createdAt} />
+              </p>
+              <p className="break-words text-sm">{message.body}</p>
+            </div>
+          </div>
+        ))}
+        <div ref={endRef} />
       </div>
 
       <form
-        className="flex items-center gap-2 border-t border-border/60 p-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!body.trim() || send.isPending) return;
-          send.mutate();
+        className="flex gap-2 border-t border-border/60 p-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (draft.trim()) send.mutate();
         }}
       >
         <Input
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          maxLength={1000}
-          placeholder="Send a message"
-          aria-label="Chat message"
-          className="rounded-full border-border/70 bg-surface/70"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="Message the room…"
+          maxLength={500}
+          aria-label="Room chat message"
+          className="rounded-full bg-surface/70"
         />
         <Button
           type="submit"
           size="icon"
-          disabled={!body.trim() || send.isPending}
-          className="gradient-brand shrink-0 rounded-full text-primary-foreground"
+          className="shrink-0 rounded-full"
+          disabled={!draft.trim() || send.isPending}
           aria-label="Send message"
         >
           <Send className="h-4 w-4" />

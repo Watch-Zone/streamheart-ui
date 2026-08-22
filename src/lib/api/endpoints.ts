@@ -109,3 +109,10 @@ export const getRoomMessages = (code: string) =>
 
 export const endRoom = (code: string) =>
   api.post<unknown>(`/api/v1/rooms/${encodeURIComponent(code)}/end`, undefined, { auth: true });
+
+/**
+ * The documented room API is read-only for messages; the backend is expected to
+ * expose this companion route (or a socket gateway). Failures surface in the UI.
+ */
+export const sendRoomMessage = (code: string, text: string) =>
+  api.post<unknown>(`/api/v1/rooms/${encodeURIComponent(code)}/messages`, { text }, { auth: true });

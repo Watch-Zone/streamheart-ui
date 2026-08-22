@@ -171,6 +171,9 @@ export function AppShell({
                 <DropdownMenuItem asChild>
                   <Link to="/upload">Upload video</Link>
                 </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/sync">GitHub sync</Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={signOut}>
                   <LogOut className="mr-2 h-4 w-4" /> Sign out

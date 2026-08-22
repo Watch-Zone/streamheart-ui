@@ -35,7 +35,7 @@ function RoomsPage() {
   const [password, setPassword] = useState("");
 
   const create = useMutation({
-    mutationFn: () => createRoom({ name: name.trim(), password: newPassword || undefined }),
+    mutationFn: () => createRoom({ name: name.trim(), ...(newPassword ? { password: newPassword } : {}) }),
     onSuccess: (room) => {
       toast.success(`Room ${room.code} created`);
       navigate({ to: "/rooms/$roomId", params: { roomId: room.code } });
@@ -44,7 +44,7 @@ function RoomsPage() {
   });
 
   const join = useMutation({
-    mutationFn: () => joinRoom(code.trim().toUpperCase(), password || undefined),
+    mutationFn: () => joinRoom(code.trim().toUpperCase(), password),
     onSuccess: () => navigate({ to: "/rooms/$roomId", params: { roomId: code.trim().toUpperCase() } }),
     onError: (error: Error) => toast.error(error.message),
   });

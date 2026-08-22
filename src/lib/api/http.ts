@@ -49,12 +49,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers["authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-  });
+  const init: RequestInit = { method, headers };
+  if (body !== undefined) init.body = JSON.stringify(body);
+  if (signal) init.signal = signal;
+
+  const response = await fetch(`${BASE}${path}`, init);
 
   const text = await response.text();
   let payload: unknown = null;

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { LiveChat } from "@/components/LiveChat";
 import { endLiveStream, getLiveStream } from "@/lib/live.functions";
 import { useSession } from "@/hooks/use-session";
-import { timeAgo } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 
 export const Route = createFileRoute("/live/$streamId")({
   head: () => ({
@@ -119,7 +119,7 @@ function LiveStreamPage() {
                 <span>·</span>
                 <span>{data.category}</span>
                 <span>·</span>
-                <span>started {timeAgo(data.started_at)}</span>
+                <span><TimeAgo iso={data.started_at} prefix="started" /></span>
               </p>
             </div>
             {isHost && isLive ? (

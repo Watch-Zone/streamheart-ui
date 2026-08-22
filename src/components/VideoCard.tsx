@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Play } from "lucide-react";
-import { formatDuration, formatViews, timeAgo } from "@/lib/format";
+import { formatDuration, formatViews } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 import type { VideoDTO } from "@/lib/video-types";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +94,7 @@ export function VideoCard({ video }: { video: VideoDTO }) {
           </h3>
           <p className="mt-1 truncate text-xs text-muted-foreground">{video.channel_name}</p>
           <p className="text-xs text-muted-foreground">
-            {formatViews(Number(video.view_count))} · {timeAgo(video.created_at)}
+            {formatViews(Number(video.view_count))} · <TimeAgo iso={video.created_at} />
           </p>
         </div>
       </div>

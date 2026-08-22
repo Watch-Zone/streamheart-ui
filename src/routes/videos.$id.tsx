@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useSession } from "@/hooks/use-session";
-import { formatViews, timeAgo, formatDuration } from "@/lib/format";
+import { formatViews, formatDuration } from "@/lib/format";
+import { TimeAgo } from "@/components/TimeAgo";
 import {
   addComment,
   getComments,
@@ -142,7 +143,7 @@ function WatchPage() {
               <div>
                 <p className="text-sm font-semibold">{video.channel_name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatDuration(video.duration_seconds)} · {timeAgo(video.created_at)}
+                  {formatDuration(video.duration_seconds)} · <TimeAgo iso={video.created_at} />
                 </p>
               </div>
             </div>
@@ -181,7 +182,7 @@ function WatchPage() {
 
           <div className="mt-4 rounded-xl bg-surface p-4">
             <p className="text-sm font-medium">
-              {formatViews(Number(video.view_count))} · {timeAgo(video.created_at)}
+              {formatViews(Number(video.view_count))} · <TimeAgo iso={video.created_at} />
             </p>
             <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
               {video.description || "No description provided."}
@@ -245,7 +246,7 @@ function WatchPage() {
                   <div>
                     <p className="text-xs text-muted-foreground">
                       <span className="font-semibold text-foreground">{comment.author_name}</span>{" "}
-                      {timeAgo(comment.created_at)}
+                      <TimeAgo iso={comment.created_at} />
                     </p>
                     <p className="mt-1 whitespace-pre-wrap text-sm">{comment.body}</p>
                   </div>

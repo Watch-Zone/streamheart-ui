@@ -34,12 +34,9 @@ async function forward({ request, params }: { request: Request; params: { _splat
 
   let upstream: Response;
   try {
-    upstream = await fetch(target, {
-      method: request.method,
-      headers,
-      body: hasBody ? await request.arrayBuffer() : undefined,
-      redirect: "follow",
-    });
+    const init: RequestInit = { method: request.method, headers, redirect: "follow" };
+    if (hasBody) init.body = await request.arrayBuffer();
+    upstream = await fetch(target, init);
   } catch (error) {
     console.error("[api-proxy] upstream unreachable", target, error);
     return Response.json(

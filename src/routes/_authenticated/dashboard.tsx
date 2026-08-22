@@ -1,118 +1,93 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2, Upload } from "lucide-react";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { Eye, Heart, Upload, UserPlus, Video as VideoIcon } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { VideoGrid } from "@/components/VideoCard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { deleteVideo, getMyVideos } from "@/lib/videos.functions";
-import { formatDuration, formatViews } from "@/lib/format";
-import { TimeAgo } from "@/components/TimeAgo";
-import type { VideoDTO } from "@/lib/video-types";
+import { formatViews } from "@/lib/format";
+import { getDashboard } from "@/lib/api/endpoints";
+import { qk } from "@/lib/api/keys";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Your videos — StreamHub" },
+      { title: "Creator studio — StreamHub" },
       {
         name: "description",
-        content: "Manage the videos you published on StreamHub: views, visibility and deletion.",
+        content: "Track your StreamHub views, likes and subscribers, and manage everything you've uploaded.",
       },
-      { property: "og:title", content: "Your videos — StreamHub" },
-      { property: "og:description", content: "Manage your published StreamHub videos." },
+      { property: "og:title", content: "Creator studio — StreamHub" },
+      { property: "og:description", content: "Track views, likes and subscribers and manage your uploads." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const queryClient = useQueryClient();
-  const { data, isPending } = useQuery({
-    queryKey: ["my-videos"],
-    queryFn: () => getMyVideos() as Promise<VideoDTO[]>,
-  });
+  const { data, isPending } = useQuery({ queryKey: qk.dashboard, queryFn: getDashboard });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteVideo({ data: { id } }),
-    onSuccess: () => {
-      toast.success("Video deleted");
-      void queryClient.invalidateQueries({ queryKey: ["my-videos"] });
-    },
-    onError: () => toast.error("Could not delete that video."),
-  });
+  const stats = [
+    { label: "Videos", value: data?.stats.videos ?? 0, icon: VideoIcon, raw: true },
+    { label: "Views", value: data?.stats.views ?? 0, icon: Eye },
+    { label: "Likes", value: data?.stats.likes ?? 0, icon: Heart },
+    { label: "Subscribers", value: data?.stats.subscribers ?? 0, icon: UserPlus },
+  ];
 
   return (
     <AppShell>
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-bold tracking-tight">Your videos</h1>
-        <Button asChild size="sm">
+      <header className="flex flex-wrap items-end justify-between gap-4 pt-6">
+        <div className="flex items-center gap-4">
+          {data?.avatarUrl ? (
+            <img
+              src={data.avatarUrl}
+              alt={`${data.displayName} avatar`}
+              className="h-14 w-14 rounded-full object-cover"
+            />
+          ) : (
+            <span className="gradient-brand flex h-14 w-14 items-center justify-center rounded-full text-sm font-bold uppercase text-primary-foreground">
+              {(data?.displayName ?? "You").slice(0, 2)}
+            </span>
+          )}
+          <div>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight">Creator studio</h1>
+            <p className="text-sm text-muted-foreground">{data?.displayName ?? "Your channel"}</p>
+          </div>
+        </div>
+
+        <Button asChild className="rounded-full px-6 font-semibold">
           <Link to="/upload">
-            <Upload className="mr-2 h-4 w-4" /> Upload
+            <Upload className="mr-2 h-4 w-4" /> Upload video
           </Link>
         </Button>
-      </div>
+      </header>
 
-      {isPending ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-      ) : (data?.length ?? 0) === 0 ? (
-        <p className="py-16 text-center text-sm text-muted-foreground">
-          You haven&apos;t published anything yet.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {data!.map((video) => (
-            <li
-              key={video.id}
-              className="flex flex-wrap items-center gap-4 rounded-xl bg-surface p-3"
-            >
-              <Link
-                to="/videos/$id"
-                params={{ id: video.id }}
-                className="aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-background"
-              >
-                {video.thumbnail_url && (
-                  <img
-                    src={video.thumbnail_url}
-                    alt={`Thumbnail for ${video.title}`}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                )}
-              </Link>
-              <div className="min-w-0 flex-1">
-                <Link
-                  to="/videos/$id"
-                  params={{ id: video.id }}
-                  className="line-clamp-1 text-sm font-semibold hover:text-primary"
-                >
-                  {video.title}
-                </Link>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {formatViews(Number(video.view_count))} ·{" "}
-                  {formatDuration(video.duration_seconds)} · <TimeAgo iso={video.created_at} />
-                </p>
-                <Badge variant="secondary" className="mt-2 capitalize">
-                  {video.visibility}
-                </Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={`Delete ${video.title}`}
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(video.id)}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+      <section className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="panel rounded-2xl p-5">
+            <stat.icon className="h-4 w-4 text-brand" />
+            <p className="mt-3 text-2xl font-extrabold tabular-nums">
+              {isPending ? "—" : stat.raw ? stat.value : formatViews(stat.value).replace(" views", "")}
+            </p>
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="mt-12">
+        <h2 className="mb-5 text-lg font-bold">Your uploads</h2>
+        {isPending ? (
+          <div className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="aspect-video rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <VideoGrid videos={data?.uploads ?? []} />
+        )}
+      </section>
     </AppShell>
   );
 }

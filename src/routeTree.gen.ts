@@ -21,6 +21,7 @@ import { Route as ProfileUserIdRouteImport } from './routes/profile.$userId'
 import { Route as VideosIdRouteImport } from './routes/videos.$id'
 import { Route as AuthenticatedRoomsIndexRouteImport } from './routes/_authenticated/rooms.index'
 import { Route as AuthenticatedRoomsRoomIdRouteImport } from './routes/_authenticated/rooms.$roomId'
+import { Route as ApiBeSplatRouteImport } from './routes/api/be/$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +83,11 @@ const AuthenticatedRoomsRoomIdRoute =
     path: '/rooms/$roomId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiBeSplatRoute = ApiBeSplatRouteImport.update({
+  id: '/api/be/$',
+  path: '/api/be/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/videos/$id': typeof VideosIdRoute
   '/live/': typeof LiveIndexRoute
   '/rooms/$roomId': typeof AuthenticatedRoomsRoomIdRoute
+  '/api/be/$': typeof ApiBeSplatRoute
   '/rooms/': typeof AuthenticatedRoomsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/videos/$id': typeof VideosIdRoute
   '/live': typeof LiveIndexRoute
   '/rooms/$roomId': typeof AuthenticatedRoomsRoomIdRoute
+  '/api/be/$': typeof ApiBeSplatRoute
   '/rooms': typeof AuthenticatedRoomsIndexRoute
 }
 export interface FileRoutesById {
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/videos/$id': typeof VideosIdRoute
   '/live/': typeof LiveIndexRoute
   '/_authenticated/rooms/$roomId': typeof AuthenticatedRoomsRoomIdRoute
+  '/api/be/$': typeof ApiBeSplatRoute
   '/_authenticated/rooms/': typeof AuthenticatedRoomsIndexRoute
 }
 export interface FileRouteTypes {
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/live/'
     | '/rooms/$roomId'
+    | '/api/be/$'
     | '/rooms/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/live'
     | '/rooms/$roomId'
+    | '/api/be/$'
     | '/rooms'
   id:
     | '__root__'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/live/'
     | '/_authenticated/rooms/$roomId'
+    | '/api/be/$'
     | '/_authenticated/rooms/'
   fileRoutesById: FileRoutesById
 }
@@ -176,6 +188,7 @@ export interface RootRouteChildren {
   ProfileUserIdRoute: typeof ProfileUserIdRoute
   VideosIdRoute: typeof VideosIdRoute
   LiveIndexRoute: typeof LiveIndexRoute
+  ApiBeSplatRoute: typeof ApiBeSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRoomsRoomIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/be/$': {
+      id: '/api/be/$'
+      path: '/api/be/$'
+      fullPath: '/api/be/$'
+      preLoaderRoute: typeof ApiBeSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -293,6 +313,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileUserIdRoute: ProfileUserIdRoute,
   VideosIdRoute: VideosIdRoute,
   LiveIndexRoute: LiveIndexRoute,
+  ApiBeSplatRoute: ApiBeSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

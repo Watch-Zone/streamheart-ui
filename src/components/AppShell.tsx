@@ -20,9 +20,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSession } from "@/hooks/use-session";
-import { supabase } from "@/integrations/supabase/client";
+import { useClerk, useUser } from "@clerk/clerk-react";
 import { cn } from "@/lib/utils";
+
 
 const NAV = [
   { to: "/", label: "Home", icon: Home },
@@ -56,7 +56,8 @@ export function AppShell({
   const [query, setQuery] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const navigate = useNavigate();
-  const { user } = useSession();
+  const { user } = useUser();
+  const clerk = useClerk();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
@@ -67,9 +68,10 @@ export function AppShell({
   }, []);
 
   async function signOut() {
-    await supabase.auth.signOut();
+    await clerk.signOut();
     navigate({ to: "/auth", replace: true });
   }
+
 
   const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
 
